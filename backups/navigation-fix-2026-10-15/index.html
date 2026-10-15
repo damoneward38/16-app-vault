@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>APP VAULT — App Directory</title>
+<style>
+:root{color-scheme:dark}*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,sans-serif;background:#0c1018;color:#e6edf3}
+header{padding:18px 24px;background:#101720;border-bottom:1px solid #1c263a;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:5}
+.logo{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#4f8cff,#a855f7);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px}
+h1{font-size:20px;margin:0}h1 small{color:#8b93a7;font-weight:400;font-size:11px;display:block;letter-spacing:1px}
+.search{margin-left:auto;width:260px;background:#0a0e16;border:1px solid #1c263a;border-radius:8px;color:#e6edf3;padding:9px 14px;font-size:13px}
+.search:focus{outline:none;border-color:#4f8cff}
+.wrap{max-width:1080px;margin:0 auto;padding:24px}
+.row{display:flex;gap:10px;margin-bottom:18px;align-items:center;flex-wrap:wrap}
+.chip{background:#121a28;border:1px solid #1e2a3d;color:#8b93a7;border-radius:20px;padding:6px 14px;font-size:12px;cursor:pointer;transition:.12s}
+.chip.active{background:#4f8cff;border-color:#4f8cff;color:#fff}
+.chip:hover{border-color:#4f8cff}
+.card{background:#0f1622;border:1px solid #1c263a;border-radius:12px;padding:18px;margin-bottom:14px;display:flex;gap:16px;align-items:center;transition:.12s}
+.card:hover{border-color:#4f8cff;background:#121b2d}
+.card .icon{width:46px;height:46px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0}
+.card .info{flex:1;min-width:0}
+.card .name{font-weight:700;font-size:15px}
+.card .url{font-size:11px;color:#6b7489;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+.card .url a{color:#4f8cff;text-decoration:none}
+.card .tags{margin-top:4px;display:flex;gap:5px;flex-wrap:wrap}
+.card .tag{background:#1a2235;color:#7aa2f7;border-radius:5px;padding:2px 8px;font-size:11px}
+.btn{background:#1d2c4a;border:1px solid #2f4570;color:#e6edf3;font-weight:600;border-radius:8px;padding:8px 14px;cursor:pointer;font-size:13px;transition:.12s}
+.btn:hover{background:#283c65;border-color:#4f8cff}
+.btn.danger{background:#1c1220;border-color:#7a2c3f;color:#f8a0a0}
+.btn.primary{background:linear-gradient(135deg,#2a61d4,#4f8cff);border-color:#4f8cff;color:#fff}
+.delete-btn{background:none;border:none;color:#7a2c3f;cursor:pointer;font-size:16px;padding:4px 8px;border-radius:6px}
+.delete-btn:hover{color:#f85149;background:#1c0f16}
+.modal-bg{position:fixed;inset:0;background:#000a;z-index:100;display:flex;align-items:center;justify-content:center}
+.modal{background:#101720;border:1px solid #1c263a;border-radius:14px;padding:24px;width:420px;max-width:90vw}
+.modal label{display:block;margin-bottom:8px;font-size:12px;color:#8b93a7;text-transform:uppercase;letter-spacing:.5px}
+.modal input{width:100%;background:#0a0e16;border:1px solid #1c263a;border-radius:8px;color:#e6edf3;padding:9px 12px;font-size:13px;margin-bottom:12px}
+.modal input:focus{outline:none;border-color:#4f8cff}
+.modal h3{margin:0 0 16px;font-size:16px}
+.modal .btns{display:flex;gap:10px;justify-content:flex-end;margin-top:8px}
+.empty{color:#6b7489;text-align:center;padding:50px 10px;font-size:14px}
+.gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:14px}
+</style></head>
+<body>
+<header>
+<div class="logo">AV</div>
+<h1>APP VAULT<small>APPLICATION DIRECTORY</small></h1>
+<input class="search" id="search" type="search" placeholder="Search apps…">
+<button class="btn primary" id="addBtn">+ Add App</button>
+</header>
+<div class="wrap">
+<div class="row" id="cats"></div>
+<div class="gallery" id="gallery"><div class="empty">No apps yet — add your first app.</div></div>
+</div>
+<script>
+const $=id=>document.getElementById(id);
+const COLORS=['#4f8cff','#a855f7','#22d3ee','#f59e0b','#10b981','#f87171','#fb923c','#38bdf8','#c084fc','#fbbf24'];
+const TAGS=['tool','dashboard','notes','prototype','library','app','demo','api'];
+const getStore=()=>{try{return JSON.parse(localStorage.getItem('av_apps'))||[]}catch{return[]}};
+const save=s=>localStorage.setItem('av_apps',JSON.stringify(s));
+let apps=getStore(),cat='All';
+
+function color(s){let h=0;for(const c of s)h=c.charCodeAt(0)+((h<<5)-h);return COLORS[Math.abs(h)%COLORS.length]}
+
+function renderCats(){
+  const cats=[...new Set(apps.map(a=>a.cat||'General'))];
+  const all=['All',...cats];
+  $('cats').innerHTML=all.map(c=>`<span class="chip${c===cat?' active':''}" data-cat="${esc(c)}">${esc(c)}</span>`).join('');
+}
+
+function render(){
+  renderCats();
+  const q=$('search').value.toLowerCase();
+  const filtered=apps.filter(a=>{
+    if(cat!=='All'&&a.cat!==cat)return false;
+    if(q&&!a.name.toLowerCase().includes(q)&&!a.url.toLowerCase().includes(q)&&!(a.tags||[]).some(t=>t.toLowerCase().includes(q)))return false;
+    return true;
+  });
+  if(!filtered.length){$('gallery').innerHTML=`<div class="empty">${apps.length?'No apps match your filter.':'No apps yet — add your first app.'}</div>`;return;}
+  $('gallery').innerHTML=filtered.map((a,i)=>`<div class="card">
+<div class="icon" style="background:${color(a.name)}22;color:${color(a.name)}">${a.name[0].toUpperCase()}</div>
+<div class="info"><div class="name">${esc(a.name)}</div><span class="url"><a href="${esc(a.url)}" target="_blank">${esc(a.url||'no url')}</a></span>
+<div class="tags">${(a.tags||[]).map(t=>`<span class="tag">${esc(t)}</span>`).join('')}
+<span class="tag" style="background:#1a2635;color:#8b93a7">${esc(a.cat||'General')}</span></div></div>
+<button class="delete-btn" data-idx="${apps.indexOf(a)}" title="Remove">✕</button></div>`).join('');
+}
+
+function openModal(preset={}){
+  const bg=document.createElement('div');bg.className='modal-bg';
+  bg.innerHTML=`<div class="modal"><h3>${preset.name?'Edit':'Add App'}</h3>
+<label>Name</label><input id="m_name" value="${esc(preset.name||'')}" placeholder="My App">
+<label>URL</label><input id="m_url" value="${esc(preset.url||'')}" placeholder="https://example.com">
+<label>Category</label><input id="m_cat" value="${esc(preset.cat||'')}" placeholder="Tool, Dashboard, etc.">
+<label>Tags (comma-separated)</label><input id="m_tags" value="${esc((preset.tags||[]).join(', '))}" placeholder="tool, prototype, api">
+<div class="btns"><button class="btn" id="m_cancel">Cancel</button><button class="btn primary" id="m_save">Save</button></div></div>`;
+  document.body.appendChild(bg);
+  bg.querySelector('#m_cancel').onclick=bg.remove;
+  bg.addEventListener('click',e=>{if(e.target===bg)bg.remove();});
+  bg.querySelector('#m_save').onclick=()=>{
+    const n=bg.querySelector('#m_name').value.trim(),u=bg.querySelector('#m_url').value.trim();
+    if(!n){alert('Name required.');return;}
+    const obj={name:n,url:u,cat:bg.querySelector('#m_cat').value.trim()||'General',tags:bg.querySelector('#m_tags').value.split(',').map(s=>s.trim()).filter(Boolean)};
+    if(preset.idx!==undefined)apps[preset.idx]=obj; else apps.push(obj);
+    save(apps);bg.remove();render();
+  };
+  bg.querySelector('#m_name').focus();
+}
+
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+
+$('addBtn').onclick=()=>openModal();
+$('gallery').onclick=e=>{
+  const del=e.target.closest('.delete-btn');
+  if(del){if(confirm('Remove app?')){apps.splice(+del.dataset.idx,1);save(apps);render();}return;}
+};
+$('cats').onclick=e=>{const c=e.target.closest('.chip');if(!c)return;cat=c.dataset.cat;render();};
+$('search').addEventListener('input',render);
+if(!apps.length){apps=[
+  {name:'CHAZAH Intelligence',url:'https://chazah.local',cat:'Tool',tags:['data','analysis']},
+  {name:'AppForge AI',url:'https://appforge.local',cat:'Generator',tags:['ai','build']},
+  {name:'SEEDRA Planner',url:'https://seedra.local',cat:'Dashboard',tags:['garden','planning']},
+];save(apps);}
+render();
+</script>
+</body></html>
